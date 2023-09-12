@@ -3,7 +3,6 @@ package mysql
 import (
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/ProAltro/Amazon-Clone/entity"
@@ -155,7 +154,9 @@ func getAllUsers(tx *Tx) ([]entity.User, error) {
 
 func getUserByID(tx *Tx, param string, value int) (*entity.User, error) {
 	var user entity.User
-	err := tx.QueryRow("SELECT * FROM users WHERE "+param+"=?", value).Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.DOJ, &user.IsPrime)
+	var doj entity.NullTime
+	err := tx.QueryRow("SELECT id,name,email,password,doj,isPrime FROM users WHERE "+param+"=?", value).Scan(&user.Id, &user.Name, &user.Email, &user.Password, &doj, &user.IsPrime)
+	user.DOJ = doj.Time
 	if err != nil {
 		return nil, err
 	}
@@ -164,14 +165,14 @@ func getUserByID(tx *Tx, param string, value int) (*entity.User, error) {
 
 func getUserByEmail(tx *Tx, param string, value string) (*entity.User, error) {
 	var user entity.User
-	err := tx.QueryRow("SELECT * FROM users WHERE "+param+"=?", value).Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.DOJ, &user.IsPrime)
+	var doj entity.NullTime
+	err := tx.QueryRow("SELECT id,name,email,password,doj,isPrime FROM users WHERE "+param+"=?", value).Scan(&user.Id, &user.Name, &user.Email, &user.Password, &doj, &user.IsPrime)
+	fmt.Println("doj", doj)
 	if err != nil {
 		return nil, err
 	}
 	return &user, nil
 }
-
 func pepper_pass(password string) []byte {
-	pepper := os.Getenv("PEPPER")
-	return []byte(password + pepper)
+	return []byte(password + "pepper")
 }

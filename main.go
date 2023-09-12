@@ -29,6 +29,8 @@ func main() {
 		userGroup := superGroup.Group("/user")
 		{
 			userGroup.POST("/signup", httpServ.UserSignup)
+			userGroup.POST("/login", httpServ.UserLogin)
+			userGroup.GET("/get", httpServ.FetchUser)
 		}
 	}
 	router.Run(":8080")
