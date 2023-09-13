@@ -2,7 +2,6 @@ package mysql
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ProAltro/Amazon-Clone/entity"
@@ -26,7 +25,6 @@ func (service *UserService) CreateUser(user *entity.User) (*entity.User, error) 
 	}
 	tx, err := service.db.BeginTx(nil)
 	if err != nil {
-		fmt.Println("WTF", err)
 		return nil, err
 	}
 	defer tx.Rollback()
@@ -107,7 +105,6 @@ func (service *UserService) AuthenticateUser(email string, password string) (*en
 	if err != nil {
 		return nil, err
 	}
-
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), pepper_pass(password))
 	if err != nil {
 		return nil, err
@@ -134,7 +131,7 @@ func createUser(tx *Tx, user *entity.User) error {
 }
 
 func getAllUsers(tx *Tx) ([]entity.User, error) {
-	rows, err := tx.Query("SELECT * FROM users")
+	rows, err := tx.Query("SELECT id,name,email,password,doj,isPrime FROM users")
 	if err != nil {
 		return nil, err
 	}
@@ -143,10 +140,13 @@ func getAllUsers(tx *Tx) ([]entity.User, error) {
 	var users []entity.User
 	for rows.Next() {
 		var user entity.User
-		err := rows.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &user.DOJ, &user.IsPrime)
+		var doj entity.NullTime
+
+		err := rows.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &doj, &user.IsPrime)
 		if err != nil {
 			return nil, err
 		}
+		user.DOJ = doj.Time
 		users = append(users, user)
 	}
 	return users, nil
@@ -167,7 +167,6 @@ func getUserByEmail(tx *Tx, param string, value string) (*entity.User, error) {
 	var user entity.User
 	var doj entity.NullTime
 	err := tx.QueryRow("SELECT id,name,email,password,doj,isPrime FROM users WHERE "+param+"=?", value).Scan(&user.Id, &user.Name, &user.Email, &user.Password, &doj, &user.IsPrime)
-	fmt.Println("doj", doj)
 	if err != nil {
 		return nil, err
 	}

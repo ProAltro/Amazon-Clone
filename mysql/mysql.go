@@ -10,7 +10,7 @@ import (
 )
 
 type DB struct {
-	db *sql.DB
+	db *sql.DB //use the map to stores sessions
 }
 
 func NewDB() *DB {

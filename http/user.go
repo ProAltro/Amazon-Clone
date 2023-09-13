@@ -2,6 +2,7 @@ package http
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/ProAltro/Amazon-Clone/entity"
 	"github.com/gin-gonic/gin"
@@ -46,6 +47,15 @@ func (http HTTPService) UserLogin(ctx *gin.Context) {
 		})
 		return
 	}
+	//create session
+	sessionID, err := CreateSession(user.Email, time.Now().Add(24*time.Hour))
+	if err != nil {
+		ctx.JSON(500, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	ctx.SetCookie("session_id", sessionID, 3600, "/", "localhost", false, true)
 	ctx.JSON(200, gin.H{
 		"message": "user logged in successfully",
 	})

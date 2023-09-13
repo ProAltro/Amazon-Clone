@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/ProAltro/Amazon-Clone/http"
+	"github.com/ProAltro/Amazon-Clone/middlewares"
 	"github.com/ProAltro/Amazon-Clone/mysql"
 
 	"github.com/gin-gonic/gin"
@@ -30,8 +31,13 @@ func main() {
 		{
 			userGroup.POST("/signup", httpServ.UserSignup)
 			userGroup.POST("/login", httpServ.UserLogin)
-			userGroup.GET("/get", httpServ.FetchUser)
 		}
 	}
+	authorisedGroup := router.Group("/api/v1")
+	authorisedGroup.Use(middlewares.AuthenticateUser())
+	{
+		authorisedGroup.GET("/get", httpServ.FetchUser)
+	}
+
 	router.Run(":8080")
 }
