@@ -1,52 +1,18 @@
 package entity
 
-import (
-	"database/sql/driver"
-	"time"
-)
+import "context"
 
 type User struct {
-	Id       int       `json:"id"`
-	Name     string    `json:"name"`
-	Email    string    `json:"email"`
-	Password string    `json:"password"`
-	DOJ      time.Time `json:"date_of_join"`
-	IsPrime  bool      `json:"is_prime"`
+	Id       int    `json:"id"`
+	Name     string `json:"name" binding:"required"`
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	DOJ      string `json:"date_of_join"`
 }
 
 type UserService interface {
-	CreateUser(user *User) (*User, error)
-	FindAllUsers() ([]User, error)
-	FindUserByID(id int) (*User, error)
-	FindUserByEmail(email string) (*User, error)
-	AuthenticateUser(email string, password string) (*User, error)
-}
-
-type NullTime struct {
-	Time  time.Time
-	Valid bool // Valid is true if Time is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (nt *NullTime) Scan(value interface{}) error {
-	// if value is [8]uint convert it to string
-	var val string
-	switch value.(type) {
-	case []uint8:
-		val = string(value.([]uint8))
-	default:
-		val = ""
-	}
-	datetime, err := time.Parse("2006-01-02 15:04:05", val)
-	nt.Time = datetime
-	nt.Valid = err == nil
-	return nil
-}
-
-// Value implements the driver Valuer interface.
-func (nt NullTime) Value() (driver.Value, error) {
-	if !nt.Valid {
-		return nil, nil
-	}
-	return nt.Time, nil
+	CreateUser(ctx context.Context, name string, email string, password string) (*User, error)
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	GetUserByID(ctx context.Context, id int) (*User, error)
+	AuthenticateUser(ctx context.Context, string, password string) (*User, error)
 }

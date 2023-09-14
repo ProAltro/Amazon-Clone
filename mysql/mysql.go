@@ -55,3 +55,18 @@ func (db *DB) BeginTx(opts *sql.TxOptions) (*Tx, error) {
 		db: db,
 	}, nil
 }
+
+func Pepper_Pass(password string) []byte {
+	var pepper string = os.Getenv("PEPPER")
+	return []byte(password + pepper)
+}
+
+func GetKeys(m map[int]int) []int {
+	keys := make([]int, len(m))
+	i := 0
+	for k := range m {
+		keys[i] = k
+		i++
+	}
+	return keys
+}

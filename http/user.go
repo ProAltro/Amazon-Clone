@@ -1,7 +1,6 @@
 package http
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/ProAltro/Amazon-Clone/entity"
@@ -18,9 +17,9 @@ func (http HTTPService) UserSignup(ctx *gin.Context) {
 		})
 		return
 	}
-	_, err = userService.CreateUser(&user)
+	_, err = userService.CreateUser(ctx, user.Name, user.Email, user.Password)
 	if err != nil {
-		ctx.JSON(400, gin.H{
+		ctx.JSON(entity.GetStatusCode(err), gin.H{
 			"error": err.Error(),
 		})
 		return
@@ -31,24 +30,29 @@ func (http HTTPService) UserSignup(ctx *gin.Context) {
 }
 
 func (http HTTPService) UserLogin(ctx *gin.Context) {
-	var user entity.User
+	type resp struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+	var u resp
 	userService := http.UserService
-	err := ctx.BindJSON(&user)
+	err := ctx.BindJSON(&u)
 	if err != nil {
 		ctx.JSON(400, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
-	_, err = userService.AuthenticateUser(user.Email, user.Password)
+	user, err := userService.AuthenticateUser(ctx, u.Email, u.Password)
+
 	if err != nil {
-		ctx.JSON(403, gin.H{
+		ctx.JSON(entity.GetStatusCode(err), gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
-	//create session
-	sessionID, err := CreateSession(user.Email, time.Now().Add(24*time.Hour))
+
+	sessionID, err := CreateSession(user.Id, user.Email, time.Now().Add(time.Hour))
 	if err != nil {
 		ctx.JSON(500, gin.H{
 			"error": err.Error(),
@@ -56,45 +60,38 @@ func (http HTTPService) UserLogin(ctx *gin.Context) {
 		return
 	}
 	ctx.SetCookie("session_id", sessionID, 3600, "/", "localhost", false, true)
+
 	ctx.JSON(200, gin.H{
 		"message": "user logged in successfully",
 	})
 }
 
-func (http HTTPService) FetchUser(ctx *gin.Context) {
+func (http HTTPService) GetUser(ctx *gin.Context) {
 
 	userService := http.UserService
-	id, err := strconv.Atoi(ctx.Query("id"))
-	email := ctx.Query("email")
-	if email == "" && err != nil {
-		ctx.JSON(400, gin.H{
-			"error": "empty id",
+	id := ctx.Value("uid").(int)
+	email := ctx.Value("email").(string)
+	if id == -1 || email == "" {
+		ctx.JSON(403, gin.H{
+			"error": "user not logged in",
 		})
 		return
 	}
-	if email != "" {
-		user, err := userService.FindUserByEmail(email)
-		if err != nil {
-			ctx.JSON(404, gin.H{
-				"error": err.Error(),
-			})
-			return
-		}
-		ctx.JSON(200, gin.H{
-			"user": user,
-		})
-		return
-	} else if id != 0 {
-		user, err := userService.FindUserByID(id)
-		if err != nil {
-			ctx.JSON(404, gin.H{
-				"error": err.Error(),
-			})
-			return
-		}
-		ctx.JSON(200, gin.H{
-			"user": user,
-		})
 
+	var user *entity.User
+	var err error
+	if email != "" {
+		user, err = userService.GetUserByEmail(ctx, email)
+	} else {
+		user, err = userService.GetUserByID(ctx, id)
 	}
+	if err != nil {
+		ctx.JSON(entity.GetStatusCode(err), gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	ctx.JSON(200, gin.H{
+		"user": user,
+	})
 }

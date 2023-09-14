@@ -1,30 +1,19 @@
 package entity
 
+import "context"
+
 type Product struct {
-	Id          int    `json:"id"`
+	ID          int    `json:"id"`
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description" binding:"required"`
 	Price       int    `json:"price" binding:"required"`
-	Features    string `json:"features" binding:"required"`
-	Seller      int    `json:"seller" binding:"required"`
+	Seller      string `json:"seller" binding:"required"`
 }
 
-// amazon clone implementation of products
 type ProductService interface {
-	CreateProduct(product *Product) (*Product, error)
-	FindAllProducts() ([]Product, error)
-	FindProductByID(id int) (*Product, error)
-	FindProductByName(name string) (*Product, error)
-	FindProductsBySeller(seller int) ([]Product, error)
-	FindProductsByFilter(filter *ProductFilter) ([]Product, error)
-	UpdateProduct(product *Product) (*Product, error)
+	CreateProduct(ctx context.Context, name string, description string, price int, seller string) (*Product, error)
+	GetProduct(ctx context.Context, id int) (*Product, error)
+	GetProducts(ctx context.Context, ids []int) ([]Product, error)
+	GetAllProducts(ctx context.Context) ([]Product, error)
+	DeleteProduct(ctx context.Context, id int) error
 }
-
-// filter struct
-type ProductFilter struct {
-	MinPrice int   `json:"min_price"`
-	MaxPrice int   `json:"max_price"`
-	Sellers  []int `json:"sellers"`
-}
-
-// update struct

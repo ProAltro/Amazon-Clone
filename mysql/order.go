@@ -1,154 +1,198 @@
 package mysql
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ProAltro/Amazon-Clone/entity"
 )
 
-var _ entity.OrderService = (*OrderService)(nil)
+var _ entity.OrderService = (*OrderService)(nil) //enforces that the service implements the interface
 
 type OrderService struct {
 	db *DB
 }
 
 func NewOrderService(db *DB) *OrderService {
-	return &OrderService{db: db}
+	return &OrderService{db}
 }
 
-func (service *OrderService) CreateOrder(order *entity.Order) (*entity.Order, error) {
-	tx, err := service.db.BeginTx(nil)
+func (os *OrderService) CreateOrder(ctx context.Context, products []entity.Stock, total int) (*entity.Order, error) {
+	tx, err := os.db.BeginTx(nil)
+	if err != nil {
+		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
+	}
+	defer tx.Rollback()
+	err = createOrder(tx, ctx.Value("uid").(int), products, total)
+
 	if err != nil {
 		return nil, err
+	}
+
+	tx.Commit()
+	return nil, nil
+}
+
+func (os *OrderService) GetOrder(ctx context.Context, id int) (*entity.Order, error) {
+	tx, err := os.db.BeginTx(nil)
+	if err != nil {
+		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
 	}
 	defer tx.Rollback()
 
-	err = createOrder(tx, order)
+	order, err := getOrder(tx, id)
 	if err != nil {
 		return nil, err
 	}
+	//check if order is of the user
+	if ctx.Value("uid") != order.UID {
+		return nil, fmt.Errorf("user not authorized: %w", entity.ErrUnauthorized)
+	}
 
-	return order, tx.Commit()
+	tx.Commit()
+	return order, nil
 }
 
-func (service *OrderService) FindAllOrders() ([]entity.Order, error) {
-	tx, err := service.db.BeginTx(nil)
+func (os *OrderService) GetOrders(ctx context.Context, ids []int) ([]entity.Order, error) {
+	tx, err := os.db.BeginTx(nil)
 	if err != nil {
-		fmt.Println("WTF", err)
-		return nil, err
+		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
 	}
 	defer tx.Rollback()
-	orders, err := getAllOrders(tx)
-	if err != nil {
-		return nil, err
-	}
-	return orders, tx.Commit()
-}
 
-func (service *OrderService) FindOrderById(id int) (*entity.Order, error) {
-	tx, err := service.db.BeginTx(nil)
-	if err != nil {
-		fmt.Println("WTF", err)
-		return nil, err
-	}
-	defer tx.Rollback()
-	order, err := getOrderById(tx, id)
-	if err != nil {
-		return nil, err
-	}
-	return order, tx.Commit()
-}
-
-func (service *OrderService) FindOrdersByUser(user int) ([]entity.Order, error) {
-
-	tx, err := service.db.BeginTx(nil)
-	if err != nil {
-		fmt.Println("WTF", err)
-		return nil, err
-	}
-	defer tx.Rollback()
-	orders, err := getOrdersByUser(tx, user)
-	if err != nil {
-		return nil, err
-	}
-	return orders, tx.Commit()
-}
-
-func createOrder(tx *Tx, order *entity.Order) error {
-	stmt, err := tx.Prepare("INSERT INTO orders(user, total_price, date) VALUES(?, ?, ?)")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(order.User, order.TotalPrice, order.Date)
-	if err != nil {
-		return err
-	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		return err
-	}
-	order.Id = int(id)
-
-	return nil
-}
-
-func getAllOrders(tx *Tx) ([]entity.Order, error) {
-	rows, err := tx.Query("SELECT id, user, total_price, date FROM orders")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	orders := []entity.Order{}
-
-	for rows.Next() {
-		var order entity.Order
-		var date entity.NullTime
-		err := rows.Scan(&order.Id, &order.User, &order.TotalPrice, &date)
-		order.Date = date.Time.String()
-		if err != nil {
-			return nil, err
+	orders, err := getOrders(tx, ids)
+	filteredOrders := []entity.Order{}
+	//remove orders that are not of the user
+	for i, order := range orders {
+		if ctx.Value("uid") != order.UID {
+			filteredOrders = append(filteredOrders, orders[i])
 		}
-		orders = append(orders, order)
+	}
+	if len(filteredOrders) == 0 {
+		return nil, fmt.Errorf("no order with those ids: %w", entity.ErrNotFound)
+	}
+	orders = filteredOrders
+	if err != nil {
+		return nil, err
 	}
 
+	tx.Commit()
 	return orders, nil
 }
 
-func getOrderById(tx *Tx, id int) (*entity.Order, error) {
-	row := tx.QueryRow("SELECT id, user, total_price, date FROM orders WHERE id=?", id)
-	order := entity.Order{}
-	var date entity.NullTime
-	err := row.Scan(&order.Id, &order.User, &order.TotalPrice, &date)
-	order.Date = date.Time.String()
+func (os *OrderService) GetOrdersOfUser(ctx context.Context, uid int) ([]entity.Order, error) {
+	tx, err := os.db.BeginTx(nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
 	}
-	return &order, nil
-}
+	defer tx.Rollback()
 
-func getOrdersByUser(tx *Tx, user int) ([]entity.Order, error) {
-	rows, err := tx.Query("SELECT id, user, total_price, date FROM orders WHERE user=?", user)
+	rows, err := tx.Query("SELECT id,total,products FROM orders WHERE uid=?", uid)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting orders: %w", entity.ErrDB)
 	}
 	defer rows.Close()
-
 	orders := []entity.Order{}
-
 	for rows.Next() {
-		var order entity.Order
-		var date entity.NullTime
-		err := rows.Scan(&order.Id, &order.User, &order.TotalPrice, &date)
-		order.Date = date.Time.String()
+		order := entity.Order{UID: uid}
+		err := rows.Scan(&order.ID, &order.Total, &order.Products)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error scanning order: %w", entity.ErrDB)
 		}
 		orders = append(orders, order)
 	}
 
+	tx.Commit()
+	return orders, nil
+}
+
+func (os *OrderService) GetAllOrders(ctx context.Context) ([]entity.Order, error) {
+	tx, err := os.db.BeginTx(nil)
+	if err != nil {
+		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.Query("SELECT id,total,uid,products FROM orders")
+	if err != nil {
+		return nil, fmt.Errorf("error getting orders: %w", entity.ErrDB)
+	}
+	defer rows.Close()
+	orders := []entity.Order{}
+	for rows.Next() {
+		order := entity.Order{}
+		err := rows.Scan(&order.ID, &order.Total, &order.UID, &order.Products)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning order: %w", entity.ErrDB)
+		}
+		orders = append(orders, order)
+	}
+
+	tx.Commit()
+	return orders, nil
+}
+
+func (os *OrderService) DeleteOrder(ctx context.Context, id int) error {
+	tx, err := os.db.BeginTx(nil)
+	if err != nil {
+		return fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
+	}
+	defer tx.Rollback()
+	//get order
+	order, err := getOrder(tx, id)
+	if err != nil {
+		return err
+	}
+	//check if order is of the user
+	if ctx.Value("uid") != order.UID {
+		return fmt.Errorf("user not authorized: %w", entity.ErrUnauthorized)
+	}
+
+	_, err = tx.Exec("DELETE FROM orders WHERE id=?", id)
+	if err != nil {
+		return fmt.Errorf("error deleting order: %w", entity.ErrDB)
+	}
+
+	tx.Commit()
+	return nil
+}
+
+func createOrder(tx *Tx, uid int, products []entity.Stock, total int) error {
+	//insert into orders table
+	_, err := tx.Exec("INSERT INTO orders (total,uid,products) VALUES (?,?,?)", total, uid, products)
+	if err != nil {
+		return fmt.Errorf("error inserting into orders table: %w", entity.ErrDB)
+	}
+	return nil
+}
+
+func getOrder(tx *Tx, id int) (*entity.Order, error) {
+	result := tx.QueryRow("SELECT id,total,uid,products FROM orders WHERE id=?", id)
+	order := &entity.Order{}
+	if result.Err() != nil {
+		return nil, fmt.Errorf("order not found: %w", entity.ErrNotFound)
+	}
+	err := result.Scan(&order.ID, &order.Total, &order.UID)
+	if err != nil {
+		return nil, fmt.Errorf("error scanning order: %w", entity.ErrDB)
+	}
+	return order, nil
+}
+
+func getOrders(tx *Tx, ids []int) ([]entity.Order, error) {
+	rows, err := tx.Query("SELECT id,total,uid,products FROM orders WHERE id IN (?)", ids)
+	if err != nil {
+		return nil, fmt.Errorf("error getting orders: %w", entity.ErrDB)
+	}
+	defer rows.Close()
+	orders := []entity.Order{}
+	for rows.Next() {
+		order := entity.Order{}
+		err := rows.Scan(&order.ID, &order.Total, &order.UID, &order.Products)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning order: %w", entity.ErrDB)
+		}
+		orders = append(orders, order)
+	}
 	return orders, nil
 }

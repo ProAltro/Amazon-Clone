@@ -27,16 +27,52 @@ func main() {
 	router := gin.Default()
 	superGroup := router.Group("/api/v1")
 	{
-		userGroup := superGroup.Group("/user")
+		superGroup.POST("/signup", httpServ.UserSignup)
+		superGroup.POST("/login", httpServ.UserLogin)
+		authorisedGroup := router.Group("/")
+		authorisedGroup.Use(middlewares.AuthenticateUser())
 		{
-			userGroup.POST("/signup", httpServ.UserSignup)
-			userGroup.POST("/login", httpServ.UserLogin)
+			authorisedGroup.GET("/user", httpServ.GetUser)
+			cartGroup := router.Group("/cart")
+			{
+				cartGroup.GET("/", httpServ.GetCart)
+				cartGroup.POST("/add", httpServ.AddProductToCart)
+				cartGroup.POST("/remove", httpServ.RemoveProductFromCart)
+				cartGroup.POST("/modify", httpServ.ModifyCart)
+				cartGroup.POST("/clear", httpServ.ClearCart)
+				cartGroup.POST("/checkout", httpServ.Checkout)
+			}
+			orderGroup := router.Group("/order")
+			{
+				orderGroup.GET("/", httpServ.GetOrders)
+				orderGroup.GET("/:id", httpServ.GetOrder)
+			}
+			inventoryGroup := router.Group("/products")
+			{
+				inventoryGroup.GET("/", httpServ.GetAllProducts)
+				inventoryGroup.GET("/:id", httpServ.GetProduct)
+			}
 		}
-	}
-	authorisedGroup := router.Group("/api/v1")
-	authorisedGroup.Use(middlewares.AuthenticateUser())
-	{
-		authorisedGroup.GET("/get", httpServ.FetchUser)
+		adminGroup := router.Group("/admin")
+		adminGroup.Use(middlewares.AuthenticateAdmin())
+		{
+			productGroup := router.Group("/product")
+			{
+				productGroup.GET("/", httpServ.GetAllProducts)
+				productGroup.GET("/:id", httpServ.GetProduct)
+				productGroup.GET("/:ids", httpServ.GetProducts)
+				productGroup.POST("/create", httpServ.CreateProduct)
+				productGroup.POST("/delete", httpServ.DeleteProduct)
+			}
+			inventoryGroup := router.Group("/inventory")
+			{
+				inventoryGroup.GET("/", httpServ.GetAllStocksFromInventory)
+				inventoryGroup.GET("/:id", httpServ.GetStockFromInventory)
+				inventoryGroup.POST("/add", httpServ.AddStockToInventory)
+				inventoryGroup.POST("/remove", httpServ.RemoveStockFromInventory)
+				inventoryGroup.POST("/modify", httpServ.UpdateStockInInventory)
+			}
+		}
 	}
 
 	router.Run(":8080")

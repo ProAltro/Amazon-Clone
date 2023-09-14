@@ -9,8 +9,11 @@ import (
 )
 
 type HTTPService struct {
-	UserService   *mysql.UserService
-	SellerService *mysql.SellerService
+	UserService      *mysql.UserService
+	ProductService   *mysql.ProductService
+	CartService      *mysql.CartService
+	OrderService     *mysql.OrderService
+	InventoryService *mysql.InventoryService
 }
 
 func NewHTTPService(userService *mysql.UserService) *HTTPService {
@@ -20,30 +23,22 @@ func NewHTTPService(userService *mysql.UserService) *HTTPService {
 }
 
 type session struct {
-	username  string
+	uid       int
+	email     string
 	expiresAt time.Time
-}
-
-type sessionsHandler interface {
-	// CreateSession creates a new session for an existing user
-	CreateSession(email string, expiresAt time.Time) error
-	// GetSession returns the enail of the user associated with the given sessionID.
-	// If the session is not found or is expired, an error is returned.
-	GetSession(sessionID string) (string, error)
-	// DeleteSession deletes the session with the given sessionID.
-	DeleteSession(sessionID string) error
-	// DeleteExpiredSessions deletes all expired sessions from the database.
-	DeleteExpiredSessions() error
+	sessionID string
 }
 
 var sessions map[string]session = make(map[string]session)
 
-func CreateSession(email string, expiresAt time.Time) (string, error) {
+func CreateSession(uid int, email string, expiresAt time.Time) (string, error) {
 	//generate random sessionID
 	sessionID := uuid.New().String()
 	sessions[sessionID] = session{
-		username:  email,
+		uid:       uid,
+		email:     email,
 		expiresAt: expiresAt,
+		sessionID: sessionID,
 	}
 	for k, v := range sessions {
 		fmt.Println(k, v)
@@ -51,17 +46,17 @@ func CreateSession(email string, expiresAt time.Time) (string, error) {
 	return sessionID, nil
 }
 
-func GetSession(sessionID string) (string, error) {
+func GetSession(sessionID string) (string, int, error) {
 	sessions := sessions
 	fmt.Println(sessions)
 	s, ok := sessions[sessionID]
 	if !ok {
-		return "", fmt.Errorf("session not found")
+		return "", -1, fmt.Errorf("session not found")
 	}
 	if s.expiresAt.Before(time.Now()) {
-		return "", fmt.Errorf("session expired")
+		return "", -1, fmt.Errorf("session expired")
 	}
-	return s.username, nil
+	return s.email, s.uid, nil
 }
 
 func DeleteSession(sessionID string) error {
@@ -74,7 +69,7 @@ func DeleteExpiredSessions() error {
 	sessions := sessions
 	for _, s := range sessions {
 		if s.expiresAt.Before(time.Now()) {
-			delete(sessions, s.username)
+			delete(sessions, s.sessionID)
 		}
 	}
 	return nil

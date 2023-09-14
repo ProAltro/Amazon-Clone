@@ -1,177 +1,144 @@
 package mysql
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ProAltro/Amazon-Clone/entity"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var _ entity.UserService = (*UserService)(nil)
+var _ entity.UserService = (*UserService)(nil) //enforces that the service implements the interface
 
 type UserService struct {
 	db *DB
 }
 
 func NewUserService(db *DB) *UserService {
-	return &UserService{db: db}
+	return &UserService{db}
 }
 
-func (service *UserService) CreateUser(user *entity.User) (*entity.User, error) {
-	//check if user email is unique
-	if user.Email == "" {
-		return nil, errors.New("empty email")
-	}
-	tx, err := service.db.BeginTx(nil)
+func (us *UserService) CreateUser(ctx context.Context, name string, email string, password string) (*entity.User, error) {
+	tx, err := us.db.BeginTx(nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
 	}
 	defer tx.Rollback()
 
-	users, err := getAllUsers(tx)
-
-	if err != nil {
+	_, err = getUserByEmail(tx, email)
+	if err == nil {
+		return nil, fmt.Errorf("user already exists: %w", entity.ErrConflict)
+	} else if !errors.Is(err, entity.ErrNotFound) {
 		return nil, err
 	}
 
-	for _, u := range users {
-		if u.Email == user.Email {
-			return nil, errors.New("email already exists")
-		}
-	}
-	//pepper is a secret key
-	hash, _ := bcrypt.GenerateFromPassword(pepper_pass(user.Password), 10)
-	user.Password = string(hash)
-	user.DOJ = time.Now()
-	err = createUser(tx, user)
+	doj := time.Now().Format("2006-01-02 15:04:05")
+	hashedPassword, err := bcrypt.GenerateFromPassword(Pepper_Pass(password), 10)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error hashing password: %w", entity.ErrServer)
 	}
-
-	return user, tx.Commit()
-}
-
-func (service *UserService) FindAllUsers() ([]entity.User, error) {
-	tx, err := service.db.BeginTx(nil)
+	result, err := tx.Exec("INSERT INTO users (name,email,doj,password) VALUES (?,?,?,?)", name, email, doj, string(hashedPassword))
 	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	users, err := getAllUsers(tx)
-	if err != nil {
-		return nil, err
-	}
-	return users, nil
-}
-
-func (service *UserService) FindUserByEmail(email string) (*entity.User, error) {
-	tx, err := service.db.BeginTx(nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	user, err := getUserByEmail(tx, "email", email)
-	if err != nil {
-		return nil, err
-	}
-	return user, nil
-}
-
-func (service *UserService) FindUserByID(id int) (*entity.User, error) {
-	tx, err := service.db.BeginTx(nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	user, err := getUserByID(tx, "id", id)
-	if err != nil {
-		return nil, err
-	}
-	return user, nil
-}
-
-func (service *UserService) AuthenticateUser(email string, password string) (*entity.User, error) {
-	tx, err := service.db.BeginTx(nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	user, err := getUserByEmail(tx, "email", email)
-	if err != nil {
-		return nil, err
-	}
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), pepper_pass(password))
-	if err != nil {
-		return nil, err
-	}
-	return user, nil
-
-}
-
-func createUser(tx *Tx, user *entity.User) error {
-	result, err := tx.Exec("INSERT INTO users (name,email,password,doj,isPrime) VALUES (?,?,?,?,?)", user.Name, user.Email, user.Password, user.DOJ, user.IsPrime)
-
-	if err != nil {
-		tx.Rollback()
-		return err
+		return nil, fmt.Errorf("error inserting user: %w", entity.ErrDB)
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
-		tx.Rollback()
-		return err
+		return nil, fmt.Errorf("error getting last insert id: %w", entity.ErrDB)
 	}
-	user.Id = int(id)
-	return nil
+	user := &entity.User{
+		Id:       int(id),
+		Name:     name,
+		Email:    email,
+		Password: password,
+		DOJ:      doj,
+	}
+
+	tx.Commit()
+	return user, nil
+
 }
 
-func getAllUsers(tx *Tx) ([]entity.User, error) {
-	rows, err := tx.Query("SELECT id,name,email,password,doj,isPrime FROM users")
+func (us *UserService) GetUserByEmail(ctx context.Context, email string) (*entity.User, error) {
+	tx, err := us.db.BeginTx(nil)
+	if err != nil {
+		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
+	}
+	defer tx.Rollback()
+
+	user, err := getUserByEmail(tx, email)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var users []entity.User
-	for rows.Next() {
-		var user entity.User
-		var doj entity.NullTime
-
-		err := rows.Scan(&user.Id, &user.Name, &user.Email, &user.Password, &doj, &user.IsPrime)
-		if err != nil {
-			return nil, err
-		}
-		user.DOJ = doj.Time
-		users = append(users, user)
-	}
-	return users, nil
+	tx.Commit()
+	return user, nil
 }
 
-func getUserByID(tx *Tx, param string, value int) (*entity.User, error) {
+func (us *UserService) GetUserByID(ctx context.Context, id int) (*entity.User, error) {
+	tx, err := us.db.BeginTx(nil)
+	if err != nil {
+		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
+	}
+	defer tx.Rollback()
+
+	user, err := getUserByID(tx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	tx.Commit()
+	return user, nil
+}
+
+func (us *UserService) AuthenticateUser(ctx context.Context, email string, password string) (*entity.User, error) {
+	tx, err := us.db.BeginTx(nil)
+	if err != nil {
+		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
+	}
+	defer tx.Rollback()
+
+	user, err := getUserByEmail(tx, email)
+	if err != nil {
+		return nil, err
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), Pepper_Pass(password))
+	if err != nil {
+		return nil, fmt.Errorf("password is incorrect: %w", entity.ErrForbidden)
+	}
+
+	tx.Commit()
+	return user, nil
+}
+
+func getUserByEmail(tx *Tx, email string) (*entity.User, error) {
+
+	row := tx.QueryRow("SELECT (id,name,email,doj,password) FROM users WHERE email=?", email)
+	if row.Err() != nil {
+		return nil, fmt.Errorf("user does not exist: %w", entity.ErrNotFound)
+	}
 	var user entity.User
-	var doj entity.NullTime
-	err := tx.QueryRow("SELECT id,name,email,password,doj,isPrime FROM users WHERE "+param+"=?", value).Scan(&user.Id, &user.Name, &user.Email, &user.Password, &doj, &user.IsPrime)
-	user.DOJ = doj.Time
+	err := row.Scan(&user.Id, &user.Name, &user.Email, &user.DOJ, &user.Password)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting user: %w", entity.ErrDB)
 	}
 	return &user, nil
+
 }
 
-func getUserByEmail(tx *Tx, param string, value string) (*entity.User, error) {
+func getUserByID(tx *Tx, id int) (*entity.User, error) {
+	row := tx.QueryRow("SELECT (id,name,email,doj,password) FROM users WHERE id=?", id)
+	if row.Err() != nil {
+		return nil, fmt.Errorf("user does not exist: %w", entity.ErrNotFound)
+	}
 	var user entity.User
-	var doj entity.NullTime
-	err := tx.QueryRow("SELECT id,name,email,password,doj,isPrime FROM users WHERE "+param+"=?", value).Scan(&user.Id, &user.Name, &user.Email, &user.Password, &doj, &user.IsPrime)
+	err := row.Scan(&user.Id, &user.Name, &user.Email, &user.DOJ, &user.Password)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting user: %w", entity.ErrDB)
 	}
 	return &user, nil
-}
-func pepper_pass(password string) []byte {
-	return []byte(password + "pepper")
+
 }
