@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -187,12 +188,12 @@ func (cs *CartService) Checkout(ctx context.Context) error {
 
 func getCartItem(tx *Tx, uid int, pid int) (*entity.Stock, error) {
 	var stock entity.Stock
-	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,.pseller,c.quantity FROM products p JOIN cart c ON p.id=c.product_id WHERE c.user_id=? AND c.product_id=?", uid, pid)
-	if row.Err() != nil {
-		return nil, fmt.Errorf("item not in cart: %w", entity.ErrNotFound)
-	}
+	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,c.quantity FROM products p JOIN cart c ON p.id=c.product_id WHERE c.user_id=? AND c.product_id=?", uid, pid)
+
 	err := row.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &stock.Quantity)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("cart item does not exist: %w", entity.ErrNotFound)
+	} else if err != nil {
 		return nil, fmt.Errorf("error scanning stock: %w", entity.ErrDB)
 	}
 
@@ -200,7 +201,8 @@ func getCartItem(tx *Tx, uid int, pid int) (*entity.Stock, error) {
 }
 
 func getCart(tx *Tx, uid int) (*entity.Cart, error) {
-	rows, err := tx.Query("SELECT p.id,p.name,p.description,p.price,p.seller,c.quantity FROM products p JOIN cart c ON p.id=c.product_id WHERE c.user_id=?", uid)
+	rows, err := tx.Query("SELECT p.id,p.name,p.description,p.price,c.quantity FROM products p JOIN cart c ON p.id=c.product_id WHERE c.user_id=?", uid)
+	fmt.Println(err)
 	if err != nil {
 		return nil, fmt.Errorf("error getting cart: %w", entity.ErrDB)
 	}

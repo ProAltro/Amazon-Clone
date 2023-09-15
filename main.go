@@ -22,18 +22,17 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	httpServ := http.NewHTTPService(mysql.NewUserService(db))
-
+	httpServ := http.NewHTTPService(mysql.NewUserService(db), mysql.NewProductService(db), mysql.NewCartService(db), mysql.NewOrderService(db), mysql.NewInventoryService(db))
 	router := gin.Default()
 	superGroup := router.Group("/api/v1")
 	{
 		superGroup.POST("/signup", httpServ.UserSignup)
 		superGroup.POST("/login", httpServ.UserLogin)
-		authorisedGroup := router.Group("/")
+		authorisedGroup := superGroup.Group("/")
 		authorisedGroup.Use(middlewares.AuthenticateUser())
 		{
 			authorisedGroup.GET("/user", httpServ.GetUser)
-			cartGroup := router.Group("/cart")
+			cartGroup := authorisedGroup.Group("/cart")
 			{
 				cartGroup.GET("/", httpServ.GetCart)
 				cartGroup.POST("/add", httpServ.AddProductToCart)
@@ -42,29 +41,27 @@ func main() {
 				cartGroup.POST("/clear", httpServ.ClearCart)
 				cartGroup.POST("/checkout", httpServ.Checkout)
 			}
-			orderGroup := router.Group("/order")
+			orderGroup := authorisedGroup.Group("/order")
 			{
 				orderGroup.GET("/", httpServ.GetOrders)
 				orderGroup.GET("/:id", httpServ.GetOrder)
 			}
-			inventoryGroup := router.Group("/products")
+			inventoryGroup := authorisedGroup.Group("/products")
 			{
 				inventoryGroup.GET("/", httpServ.GetAllProducts)
 				inventoryGroup.GET("/:id", httpServ.GetProduct)
 			}
 		}
-		adminGroup := router.Group("/admin")
+		adminGroup := superGroup.Group("/admin")
 		adminGroup.Use(middlewares.AuthenticateAdmin())
 		{
-			productGroup := router.Group("/product")
+			productGroup := adminGroup.Group("/products")
 			{
 				productGroup.GET("/", httpServ.GetAllProducts)
-				productGroup.GET("/:id", httpServ.GetProduct)
-				productGroup.GET("/:ids", httpServ.GetProducts)
 				productGroup.POST("/create", httpServ.CreateProduct)
 				productGroup.POST("/delete", httpServ.DeleteProduct)
 			}
-			inventoryGroup := router.Group("/inventory")
+			inventoryGroup := adminGroup.Group("/inventory")
 			{
 				inventoryGroup.GET("/", httpServ.GetAllStocksFromInventory)
 				inventoryGroup.GET("/:id", httpServ.GetStockFromInventory)

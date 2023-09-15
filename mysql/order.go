@@ -2,6 +2,8 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/ProAltro/Amazon-Clone/entity"
@@ -159,7 +161,7 @@ func (os *OrderService) DeleteOrder(ctx context.Context, id int) error {
 
 func createOrder(tx *Tx, uid int, products []entity.Stock, total int) error {
 	//insert into orders table
-	_, err := tx.Exec("INSERT INTO orders (total,uid,products) VALUES (?,?,?)", total, uid, products)
+	_, err := tx.Exec("INSERT INTO orders (total,user_id,products) VALUES (?,?,?)", total, uid, products)
 	if err != nil {
 		return fmt.Errorf("error inserting into orders table: %w", entity.ErrDB)
 	}
@@ -167,20 +169,20 @@ func createOrder(tx *Tx, uid int, products []entity.Stock, total int) error {
 }
 
 func getOrder(tx *Tx, id int) (*entity.Order, error) {
-	result := tx.QueryRow("SELECT id,total,uid,products FROM orders WHERE id=?", id)
+	result := tx.QueryRow("SELECT id,total,user_id,products FROM orders WHERE id=?", id)
 	order := &entity.Order{}
-	if result.Err() != nil {
-		return nil, fmt.Errorf("order not found: %w", entity.ErrNotFound)
-	}
 	err := result.Scan(&order.ID, &order.Total, &order.UID)
-	if err != nil {
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("order does not exist: %w", entity.ErrNotFound)
+	} else if err != nil {
 		return nil, fmt.Errorf("error scanning order: %w", entity.ErrDB)
 	}
 	return order, nil
 }
 
 func getOrders(tx *Tx, ids []int) ([]entity.Order, error) {
-	rows, err := tx.Query("SELECT id,total,uid,products FROM orders WHERE id IN (?)", ids)
+	rows, err := tx.Query("SELECT id,total,user_idid,products FROM orders WHERE id IN (?)", ids)
 	if err != nil {
 		return nil, fmt.Errorf("error getting orders: %w", entity.ErrDB)
 	}

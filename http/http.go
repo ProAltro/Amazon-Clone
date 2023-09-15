@@ -16,9 +16,13 @@ type HTTPService struct {
 	InventoryService *mysql.InventoryService
 }
 
-func NewHTTPService(userService *mysql.UserService) *HTTPService {
+func NewHTTPService(userService *mysql.UserService, productService *mysql.ProductService, cartService *mysql.CartService, orderService *mysql.OrderService, inventoryService *mysql.InventoryService) *HTTPService {
 	return &HTTPService{
-		UserService: userService,
+		UserService:      userService,
+		ProductService:   productService,
+		CartService:      cartService,
+		OrderService:     orderService,
+		InventoryService: inventoryService,
 	}
 }
 

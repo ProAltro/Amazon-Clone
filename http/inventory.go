@@ -10,7 +10,7 @@ import (
 func (http HTTPService) AddStockToInventory(ctx *gin.Context) {
 	inventoryService := http.InventoryService
 	type req struct {
-		ID       int `json:"id" binding:"required"`
+		ID       int `json:"product_id" binding:"required"`
 		Quantity int `json:"quantity" binding:"required"`
 	}
 	var resp req
@@ -28,7 +28,7 @@ func (http HTTPService) AddStockToInventory(ctx *gin.Context) {
 		})
 		return
 	}
-	ctx.JSON(200, gin.H{})
+	ctx.JSON(200, gin.H{"product with id " + strconv.Itoa(resp.ID): "added to inventory"})
 }
 
 func (http HTTPService) GetAllStocksFromInventory(ctx *gin.Context) {
@@ -67,7 +67,7 @@ func (http HTTPService) GetStockFromInventory(ctx *gin.Context) {
 func (http HTTPService) UpdateStockInInventory(ctx *gin.Context) {
 	inventoryService := http.InventoryService
 	type req struct {
-		ID       int `json:"id" binding:"required"`
+		ID       int `json:"product_id" binding:"required"`
 		Quantity int `json:"quantity" binding:"required"`
 	}
 	var resp req
@@ -85,7 +85,7 @@ func (http HTTPService) UpdateStockInInventory(ctx *gin.Context) {
 		})
 		return
 	}
-	ctx.JSON(200, gin.H{})
+	ctx.JSON(200, gin.H{"product with id " + strconv.Itoa(resp.ID): "updated in inventory"})
 }
 
 func (http HTTPService) RemoveStockFromInventory(ctx *gin.Context) {
@@ -104,5 +104,5 @@ func (http HTTPService) RemoveStockFromInventory(ctx *gin.Context) {
 		})
 		return
 	}
-	ctx.JSON(200, gin.H{})
+	ctx.JSON(200, gin.H{"product with id " + strconv.Itoa(id): "removed from inventory"})
 }

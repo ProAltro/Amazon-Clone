@@ -2,6 +2,8 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/ProAltro/Amazon-Clone/entity"
@@ -126,6 +128,7 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, id int) error {
 
 	_, err = tx.Exec("DELETE FROM products WHERE id=?", id)
 	if err != nil {
+		fmt.Println(err)
 		return fmt.Errorf("error deleting product: %w", entity.ErrDB)
 	}
 
@@ -134,14 +137,16 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, id int) error {
 }
 
 func getProduct(tx *Tx, id int) (*entity.Product, error) {
+	var product entity.Product
 	res := tx.QueryRow("SELECT id,name,description,price,seller FROM products WHERE id = ?", id)
-	if res.Err() != nil {
-		return nil, fmt.Errorf("error getting product: %w", entity.ErrNotFound)
+	err := res.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Seller)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("product does not exist: %w", entity.ErrNotFound)
+	} else if err != nil {
+		return nil, fmt.Errorf("error scanning product: %w", entity.ErrDB)
 	}
 
-	product := &entity.Product{}
-
-	return product, nil
+	return &product, nil
 }
 
 func getProducts(tx *Tx, ids []int) ([]entity.Product, error) {

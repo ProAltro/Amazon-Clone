@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -35,6 +36,7 @@ func (is *InventoryService) AddStockToInventory(ctx context.Context, id int, qua
 	if err == nil {
 		return fmt.Errorf("stock already exists: %w", entity.ErrConflict)
 	} else if !errors.Is(err, entity.ErrNotFound) {
+		fmt.Println(err)
 		return fmt.Errorf("error getting stock: %w", entity.ErrDB)
 	}
 
@@ -42,7 +44,7 @@ func (is *InventoryService) AddStockToInventory(ctx context.Context, id int, qua
 	if err != nil {
 		return fmt.Errorf("error inserting stock: %w", entity.ErrDB)
 	}
-
+	tx.Commit()
 	return nil
 }
 
@@ -57,7 +59,7 @@ func (is *InventoryService) UpdateStockInInventory(ctx context.Context, id int, 
 	if err != nil {
 		return err
 	}
-
+	tx.Commit()
 	return nil
 }
 
@@ -72,7 +74,7 @@ func (is *InventoryService) GetStockFromInventory(ctx context.Context, id int) (
 	if err != nil {
 		return nil, err
 	}
-
+	tx.Commit()
 	return stock, nil
 }
 
@@ -107,20 +109,19 @@ func (is *InventoryService) RemoveStockFromInventory(ctx context.Context, id int
 	if err != nil {
 		return fmt.Errorf("error deleting stock: %w", entity.ErrDB)
 	}
-
+	tx.Commit()
 	return nil
 }
 
 func getStock(tx *Tx, id int) (*entity.Stock, error) {
 	var stock entity.Stock
 	//joiniung product and inventory tables to get list of products and their quantities
-	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,.pseller,i.quantity FROM products p JOIN inventory i ON p.id=i.product_id WHERE p.id=?", id)
-	if row.Err() != nil {
-		return nil, fmt.Errorf("product does not exist: %w", entity.ErrNotFound)
-	}
+	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,p.seller,i.quantity FROM products p JOIN inventory i ON p.id=i.product_id WHERE p.id=?", id)
 	err := row.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &stock.Quantity)
-
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("stock does not exist: %w", entity.ErrNotFound)
+	} else if err != nil {
+		fmt.Println(err)
 		return nil, fmt.Errorf("error scanning row: %w", entity.ErrDB)
 	}
 	return &stock, nil
@@ -128,9 +129,9 @@ func getStock(tx *Tx, id int) (*entity.Stock, error) {
 
 func getAllStocks(tx *Tx) ([]*entity.Stock, error) {
 	stocks := []*entity.Stock{}
-	rows, err := tx.Query("SELECT p.id,p.name,p.description,p.price,.pseller,i.quantity FROM products p JOIN inventory i ON p.id=i.product_id")
+	rows, err := tx.Query("SELECT p.id,p.name,p.description,p.price,p.seller,i.quantity FROM products p JOIN inventory i ON p.id=i.product_id")
 	if err != nil {
-		return nil, fmt.Errorf("error scanning row: %w", entity.ErrDB)
+		return nil, fmt.Errorf("error querying: %w", entity.ErrDB)
 	}
 	for rows.Next() {
 		stock := entity.Stock{}

@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -115,13 +116,15 @@ func (us *UserService) AuthenticateUser(ctx context.Context, email string, passw
 }
 
 func getUserByEmail(tx *Tx, email string) (*entity.User, error) {
-
-	row := tx.QueryRow("SELECT (id,name,email,doj,password) FROM users WHERE email=?", email)
-	if row.Err() != nil {
-		return nil, fmt.Errorf("user does not exist: %w", entity.ErrNotFound)
-	}
 	var user entity.User
+	row := tx.QueryRow("SELECT id,name,email,doj,password FROM users WHERE email=?", email)
 	err := row.Scan(&user.Id, &user.Name, &user.Email, &user.DOJ, &user.Password)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("user does not exist: %w", entity.ErrNotFound)
+	} else if err != nil {
+		return nil, fmt.Errorf("error getting user: %w", entity.ErrDB)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("error getting user: %w", entity.ErrDB)
 	}
@@ -130,15 +133,15 @@ func getUserByEmail(tx *Tx, email string) (*entity.User, error) {
 }
 
 func getUserByID(tx *Tx, id int) (*entity.User, error) {
-	row := tx.QueryRow("SELECT (id,name,email,doj,password) FROM users WHERE id=?", id)
-	if row.Err() != nil {
-		return nil, fmt.Errorf("user does not exist: %w", entity.ErrNotFound)
-	}
 	var user entity.User
+	row := tx.QueryRow("SELECT id,name,email,doj,password FROM users WHERE id=?", id)
 	err := row.Scan(&user.Id, &user.Name, &user.Email, &user.DOJ, &user.Password)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("user does not exist: %w", entity.ErrNotFound)
+	} else if err != nil {
 		return nil, fmt.Errorf("error getting user: %w", entity.ErrDB)
 	}
+
 	return &user, nil
 
 }
