@@ -47,7 +47,7 @@ func (http HTTPService) GetAllStocksFromInventory(ctx *gin.Context) {
 
 func (http HTTPService) GetStockFromInventory(ctx *gin.Context) {
 	inventoryService := http.InventoryService
-	id, err := strconv.Atoi(ctx.Query("id"))
+	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(400, gin.H{
 			"error": "id must be an integer",

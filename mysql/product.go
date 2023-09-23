@@ -128,7 +128,6 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, id int) error {
 
 	_, err = tx.Exec("DELETE FROM products WHERE id=?", id)
 	if err != nil {
-		fmt.Println(err)
 		return fmt.Errorf("error deleting product: %w", entity.ErrDB)
 	}
 

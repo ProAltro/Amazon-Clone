@@ -1,8 +1,6 @@
 package middlewares
 
 import (
-	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ProAltro/Amazon-Clone/http"
@@ -21,7 +19,6 @@ func AuthenticateUser() gin.HandlerFunc {
 		}
 		email, uid, err := http.GetSession(sessionID)
 		if err != nil {
-			fmt.Println("error", err)
 			ctx.JSON(403, gin.H{
 				"error": err.Error(),
 			})
@@ -37,7 +34,7 @@ func AuthenticateUser() gin.HandlerFunc {
 
 func AuthenticateAdmin() gin.HandlerFunc {
 
-	adminUsers := os.Getenv("ADMIN_USERS") //comma separated list of admin users
+	adminUsers := "demo@gmail.com," //comma separated list of admin users
 	adminUsersList := strings.Split(adminUsers, ",")
 
 	return func(ctx *gin.Context) {
@@ -51,14 +48,13 @@ func AuthenticateAdmin() gin.HandlerFunc {
 		}
 		email, uid, err := http.GetSession(sessionID)
 		if err != nil {
-			fmt.Println("error", err)
 			ctx.JSON(403, gin.H{
 				"error": err.Error(),
 			})
 			ctx.Abort()
 			return
 		}
-		//check if user is admin
+
 		isAdmin := false
 		for _, adminUser := range adminUsersList {
 			if adminUser == email {

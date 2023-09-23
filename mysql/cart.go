@@ -27,7 +27,7 @@ func (cs *CartService) AddProductToCart(ctx context.Context, pid int, quantity i
 	}
 	defer tx.Rollback()
 
-	_, err = getProduct(tx, pid)
+	stock, err := getStock(tx, pid)
 	if err != nil {
 		return err
 	}
@@ -35,8 +35,14 @@ func (cs *CartService) AddProductToCart(ctx context.Context, pid int, quantity i
 	_, err = getCartItem(tx, uid, pid)
 
 	if err == nil {
+		if stock.Quantity+quantity > 10 {
+			return fmt.Errorf("quantity exceeds stock: %w", entity.ErrConflict)
+		}
 		_, err = tx.Exec("UPDATE cart SET quantity=quantity+? WHERE user_id=? AND product_id=?", quantity, uid, pid)
 	} else if errors.Is(err, entity.ErrNotFound) {
+		if quantity > stock.Quantity {
+			return fmt.Errorf("quantity exceeds stock: %w", entity.ErrConflict)
+		}
 		_, err = tx.Exec("INSERT INTO cart (user_id,product_id,quantity) VALUES (?,?,?)", uid, pid, quantity)
 	} else {
 		return err
@@ -175,6 +181,12 @@ func (cs *CartService) Checkout(ctx context.Context) error {
 		tx.Rollback()
 		return fmt.Errorf("not enough stock of %v: %w", notEnoughStock, entity.ErrConflict)
 	}
+	cart.Total, err = total(tx, uid)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	err = createOrder(tx, uid, cart.Products, cart.Total)
 	if err != nil {
 		tx.Rollback()
@@ -183,12 +195,14 @@ func (cs *CartService) Checkout(ctx context.Context) error {
 
 	cs.ClearCart(ctx)
 
+	tx.Commit()
+
 	return nil
 }
 
 func getCartItem(tx *Tx, uid int, pid int) (*entity.Stock, error) {
 	var stock entity.Stock
-	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,c.quantity FROM products p JOIN cart c ON p.id=c.product_id WHERE c.user_id=? AND c.product_id=?", uid, pid)
+	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,p.seller,c.quantity FROM products p JOIN cart c ON p.id=c.product_id WHERE c.user_id=? AND c.product_id=?", uid, pid)
 
 	err := row.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &stock.Quantity)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -201,14 +215,14 @@ func getCartItem(tx *Tx, uid int, pid int) (*entity.Stock, error) {
 }
 
 func getCart(tx *Tx, uid int) (*entity.Cart, error) {
-	rows, err := tx.Query("SELECT p.id,p.name,p.description,p.price,c.quantity FROM products p JOIN cart c ON p.id=c.product_id WHERE c.user_id=?", uid)
-	fmt.Println(err)
+	rows, err := tx.Query("SELECT p.id,p.name,p.description,p.price,p.seller,c.quantity FROM products p JOIN cart c ON p.id=c.product_id WHERE c.user_id=?", uid)
 	if err != nil {
 		return nil, fmt.Errorf("error getting cart: %w", entity.ErrDB)
 	}
 	defer rows.Close()
 
 	var cart entity.Cart
+	cart.UID = uid
 	for rows.Next() {
 		var stock entity.Stock
 		err := rows.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &stock.Quantity)

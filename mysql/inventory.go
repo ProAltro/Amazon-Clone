@@ -36,7 +36,6 @@ func (is *InventoryService) AddStockToInventory(ctx context.Context, id int, qua
 	if err == nil {
 		return fmt.Errorf("stock already exists: %w", entity.ErrConflict)
 	} else if !errors.Is(err, entity.ErrNotFound) {
-		fmt.Println(err)
 		return fmt.Errorf("error getting stock: %w", entity.ErrDB)
 	}
 
@@ -115,13 +114,11 @@ func (is *InventoryService) RemoveStockFromInventory(ctx context.Context, id int
 
 func getStock(tx *Tx, id int) (*entity.Stock, error) {
 	var stock entity.Stock
-	//joiniung product and inventory tables to get list of products and their quantities
 	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,p.seller,i.quantity FROM products p JOIN inventory i ON p.id=i.product_id WHERE p.id=?", id)
 	err := row.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &stock.Quantity)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("stock does not exist: %w", entity.ErrNotFound)
 	} else if err != nil {
-		fmt.Println(err)
 		return nil, fmt.Errorf("error scanning row: %w", entity.ErrDB)
 	}
 	return &stock, nil
@@ -166,6 +163,7 @@ func updateStockInInventory(tx *Tx, id int, quantity int) error {
 func removeFromStockInInventory(tx *Tx, id int, quantity int) error {
 	stock, err := getStock(tx, id)
 	if err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
 	err = updateStockInInventory(tx, id, stock.Quantity-quantity)

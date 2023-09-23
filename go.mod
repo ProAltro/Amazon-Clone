@@ -1,6 +1,6 @@
 module github.com/ProAltro/Amazon-Clone
 
-go 1.21.0
+go 1.23
 
 require (
 	github.com/bytedance/sonic v1.9.1 // indirect

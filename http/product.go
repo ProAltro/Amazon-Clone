@@ -23,7 +23,7 @@ func (http HTTPService) GetAllProducts(ctx *gin.Context) {
 
 func (http HTTPService) GetProduct(ctx *gin.Context) {
 	productService := http.ProductService
-	id, err := strconv.Atoi(ctx.Query("id"))
+	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(400, gin.H{
 			"error": "id must be an integer",

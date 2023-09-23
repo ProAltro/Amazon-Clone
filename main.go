@@ -48,8 +48,8 @@ func main() {
 			}
 			inventoryGroup := authorisedGroup.Group("/products")
 			{
-				inventoryGroup.GET("/", httpServ.GetAllProducts)
-				inventoryGroup.GET("/:id", httpServ.GetProduct)
+				inventoryGroup.GET("/", httpServ.GetAllStocksFromInventory)
+				inventoryGroup.GET("/:id", httpServ.GetStockFromInventory)
 			}
 		}
 		adminGroup := superGroup.Group("/admin")

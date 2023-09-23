@@ -44,15 +44,12 @@ func CreateSession(uid int, email string, expiresAt time.Time) (string, error) {
 		expiresAt: expiresAt,
 		sessionID: sessionID,
 	}
-	for k, v := range sessions {
-		fmt.Println(k, v)
-	}
+
 	return sessionID, nil
 }
 
 func GetSession(sessionID string) (string, int, error) {
 	sessions := sessions
-	fmt.Println(sessions)
 	s, ok := sessions[sessionID]
 	if !ok {
 		return "", -1, fmt.Errorf("session not found")

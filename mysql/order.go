@@ -64,7 +64,6 @@ func (os *OrderService) GetOrders(ctx context.Context, ids []int) ([]entity.Orde
 
 	orders, err := getOrders(tx, ids)
 	filteredOrders := []entity.Order{}
-	//remove orders that are not of the user
 	for i, order := range orders {
 		if ctx.Value("uid") != order.UID {
 			filteredOrders = append(filteredOrders, orders[i])
@@ -83,13 +82,13 @@ func (os *OrderService) GetOrders(ctx context.Context, ids []int) ([]entity.Orde
 }
 
 func (os *OrderService) GetOrdersOfUser(ctx context.Context, uid int) ([]entity.Order, error) {
+
 	tx, err := os.db.BeginTx(nil)
 	if err != nil {
 		return nil, fmt.Errorf("error beginning transaction: %w", entity.ErrDB)
 	}
 	defer tx.Rollback()
-
-	rows, err := tx.Query("SELECT id,total,products FROM orders WHERE uid=?", uid)
+	rows, err := tx.Query("SELECT id,total,products FROM orders WHERE user_id=?", uid)
 	if err != nil {
 		return nil, fmt.Errorf("error getting orders: %w", entity.ErrDB)
 	}
@@ -97,10 +96,17 @@ func (os *OrderService) GetOrdersOfUser(ctx context.Context, uid int) ([]entity.
 	orders := []entity.Order{}
 	for rows.Next() {
 		order := entity.Order{UID: uid}
-		err := rows.Scan(&order.ID, &order.Total, &order.Products)
+		json_products := ""
+		err := rows.Scan(&order.ID, &order.Total, &json_products)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning order: %w", entity.ErrDB)
 		}
+		products, err := entity.FromJSON([]byte(json_products))
+		if err != nil {
+			return nil, fmt.Errorf("error converting json to products: %w", entity.ErrInternal)
+		}
+		order.Products = products
+
 		orders = append(orders, order)
 	}
 
@@ -161,8 +167,16 @@ func (os *OrderService) DeleteOrder(ctx context.Context, id int) error {
 
 func createOrder(tx *Tx, uid int, products []entity.Stock, total int) error {
 	//insert into orders table
-	_, err := tx.Exec("INSERT INTO orders (total,user_id,products) VALUES (?,?,?)", total, uid, products)
+	//convert products to json
+	//insert into orders table
+	json_products, err := entity.ToJSON(products)
 	if err != nil {
+		return fmt.Errorf("error converting products to json: %w", entity.ErrInternal)
+	}
+
+	_, err = tx.Exec("INSERT INTO orders (total,user_id,products) VALUES (?,?,?)", total, uid, json_products)
+	if err != nil {
+		fmt.Println(err.Error())
 		return fmt.Errorf("error inserting into orders table: %w", entity.ErrDB)
 	}
 	return nil
@@ -171,13 +185,21 @@ func createOrder(tx *Tx, uid int, products []entity.Stock, total int) error {
 func getOrder(tx *Tx, id int) (*entity.Order, error) {
 	result := tx.QueryRow("SELECT id,total,user_id,products FROM orders WHERE id=?", id)
 	order := &entity.Order{}
-	err := result.Scan(&order.ID, &order.Total, &order.UID)
+	json_products := ""
+	err := result.Scan(&order.ID, &order.Total, &order.UID, &json_products)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("order does not exist: %w", entity.ErrNotFound)
 	} else if err != nil {
 		return nil, fmt.Errorf("error scanning order: %w", entity.ErrDB)
 	}
+
+	products, err := entity.FromJSON([]byte(json_products))
+	if err != nil {
+		return nil, fmt.Errorf("error converting json to products: %w", entity.ErrInternal)
+	}
+	order.Products = products
+
 	return order, nil
 }
 
@@ -190,10 +212,17 @@ func getOrders(tx *Tx, ids []int) ([]entity.Order, error) {
 	orders := []entity.Order{}
 	for rows.Next() {
 		order := entity.Order{}
-		err := rows.Scan(&order.ID, &order.Total, &order.UID, &order.Products)
+		json_products := ""
+		err := rows.Scan(&order.ID, &order.Total, &order.UID, &json_products)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning order: %w", entity.ErrDB)
 		}
+		products, err := entity.FromJSON([]byte(json_products))
+		if err != nil {
+			return nil, fmt.Errorf("error converting json to products: %w", entity.ErrInternal)
+		}
+		order.Products = products
+
 		orders = append(orders, order)
 	}
 	return orders, nil

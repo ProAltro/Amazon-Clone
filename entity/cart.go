@@ -3,7 +3,6 @@ package entity
 import "context"
 
 type Cart struct {
-	ID       int     `json:"id"`
 	Products []Stock `json:"products" binding:"required"`
 	Total    int     `json:"total" binding:"required"`
 	UID      int     `json:"user" binding:"required"`
