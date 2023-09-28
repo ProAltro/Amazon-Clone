@@ -48,13 +48,11 @@ func FromJSON(data []byte) ([]Stock, error) {
 	for _, stock := range products {
 		product := stock["product"].(map[string]interface{})
 		quantity := stock["quantity"].(float64)
-
-		var images []string
-		err := json.Unmarshal([]byte(product["images"].(string)), &images)
-		if err != nil {
-			return nil, err
+		images := product["images"].([]interface{})
+		var new_images []string
+		for _, image := range images {
+			new_images = append(new_images, image.(string))
 		}
-
 		stocks = append(stocks, Stock{
 			Product: Product{
 				ID:          int(product["id"].(float64)),
@@ -62,7 +60,7 @@ func FromJSON(data []byte) ([]Stock, error) {
 				Description: product["description"].(string),
 				Price:       int(product["price"].(float64)),
 				Seller:      product["seller"].(string),
-				Images:      images,
+				Images:      new_images,
 			},
 			Quantity: int(quantity),
 		})

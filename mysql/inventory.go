@@ -27,11 +27,13 @@ func (is *InventoryService) AddStockToInventory(ctx context.Context, id int, qua
 	defer tx.Rollback()
 
 	//check if product exists
+	fmt.Println("why")
 	_, err = getProduct(tx, id)
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("why")
 	_, err = getStock(tx, id)
 	if err == nil {
 		return fmt.Errorf("stock already exists: %w", entity.ErrConflict)

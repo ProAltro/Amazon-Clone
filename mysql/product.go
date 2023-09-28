@@ -178,6 +178,7 @@ func (ps *ProductService) DeleteProduct(ctx context.Context, id int) error {
 
 	_, err = tx.Exec("DELETE FROM products WHERE id=?", id)
 	if err != nil {
+		fmt.Println(err)
 		return fmt.Errorf("error deleting product: %w", entity.ErrDB)
 	}
 
@@ -190,11 +191,15 @@ func getProduct(tx *Tx, id int) (*entity.Product, error) {
 	res := tx.QueryRow("SELECT id,name,description,price,seller,images FROM products WHERE id = ?", id)
 	images := ""
 	err := res.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Seller, &images)
-	product.Images, err = entity.JSON_To_Image([]byte(images))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("product does not exist: %w", entity.ErrNotFound)
 	} else if err != nil {
+		fmt.Println(err)
 		return nil, fmt.Errorf("error scanning product: %w", entity.ErrDB)
+	}
+	product.Images, err = entity.JSON_To_Image([]byte(images))
+	if err != nil {
+		return nil, fmt.Errorf("error converting json to images: %w", entity.ErrInternal)
 	}
 
 	return &product, nil
@@ -211,11 +216,16 @@ func getProducts(tx *Tx, ids []int) ([]entity.Product, error) {
 		product := entity.Product{}
 		images := ""
 		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Seller, &images)
-		product.Images, err = entity.JSON_To_Image([]byte(images))
+
 		if err != nil {
 			fmt.Println(err)
 			return nil, fmt.Errorf("error scanning product: %w", entity.ErrDB)
 		}
+		product.Images, err = entity.JSON_To_Image([]byte(images))
+		if err != nil {
+			return nil, fmt.Errorf("error converting json to images: %w", entity.ErrInternal)
+		}
+
 		products = append(products, product)
 	}
 

@@ -203,14 +203,14 @@ func (cs *CartService) Checkout(ctx context.Context) error {
 func getCartItem(tx *Tx, uid int, pid int) (*entity.Stock, error) {
 	var stock entity.Stock
 	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,p.seller,p.images, c.quantity FROM products p JOIN cart c ON p.id=c.product_id WHERE c.user_id=? AND c.product_id=?", uid, pid)
-
-	err := row.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &stock.Product.Images, &stock.Quantity)
+	images := ""
+	err := row.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &images, &stock.Quantity)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("cart item does not exist: %w", entity.ErrNotFound)
 	} else if err != nil {
 		return nil, fmt.Errorf("error scanning stock: %w", entity.ErrDB)
 	}
-
+	stock.Product.Images, err = entity.JSON_To_Image([]byte(images))
 	return &stock, nil
 }
 
