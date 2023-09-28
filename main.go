@@ -6,7 +6,6 @@ import (
 	"github.com/ProAltro/Amazon-Clone/http"
 	"github.com/ProAltro/Amazon-Clone/middlewares"
 	"github.com/ProAltro/Amazon-Clone/mysql"
-
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -51,6 +50,10 @@ func main() {
 				inventoryGroup.GET("/", httpServ.GetAllStocksFromInventory)
 				inventoryGroup.GET("/:id", httpServ.GetStockFromInventory)
 			}
+			imageGroup := authorisedGroup.Group("/images")
+			{
+				imageGroup.GET("/:id", httpServ.ServImage)
+			}
 		}
 		adminGroup := superGroup.Group("/admin")
 		adminGroup.Use(middlewares.AuthenticateAdmin())
@@ -59,6 +62,7 @@ func main() {
 			{
 				productGroup.GET("/", httpServ.GetAllProducts)
 				productGroup.POST("/create", httpServ.CreateProduct)
+				productGroup.POST("/modify", httpServ.UpdateProduct)
 				productGroup.POST("/delete", httpServ.DeleteProduct)
 			}
 			inventoryGroup := adminGroup.Group("/inventory")

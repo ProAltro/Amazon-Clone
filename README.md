@@ -6,5 +6,4 @@ The documentation of the API can be found at https://documenter.getpostman.com/v
 
 TODO:
 
-- Add User Endpoints to Documentation
-- Test the user endpoints
+Fix update image naming

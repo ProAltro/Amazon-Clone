@@ -27,6 +27,7 @@ func ToJSON(stocks []Stock) ([]byte, error) {
 			"description": stock.Product.Description,
 			"price":       stock.Product.Price,
 			"seller":      stock.Product.Seller,
+			"images":      stock.Product.Images,
 		}
 		stockMap := map[string]interface{}{
 			"product":  product,
@@ -47,6 +48,13 @@ func FromJSON(data []byte) ([]Stock, error) {
 	for _, stock := range products {
 		product := stock["product"].(map[string]interface{})
 		quantity := stock["quantity"].(float64)
+
+		var images []string
+		err := json.Unmarshal([]byte(product["images"].(string)), &images)
+		if err != nil {
+			return nil, err
+		}
+
 		stocks = append(stocks, Stock{
 			Product: Product{
 				ID:          int(product["id"].(float64)),
@@ -54,6 +62,7 @@ func FromJSON(data []byte) ([]Stock, error) {
 				Description: product["description"].(string),
 				Price:       int(product["price"].(float64)),
 				Seller:      product["seller"].(string),
+				Images:      images,
 			},
 			Quantity: int(quantity),
 		})

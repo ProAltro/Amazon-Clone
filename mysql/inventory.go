@@ -114,28 +114,32 @@ func (is *InventoryService) RemoveStockFromInventory(ctx context.Context, id int
 
 func getStock(tx *Tx, id int) (*entity.Stock, error) {
 	var stock entity.Stock
-	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,p.seller,i.quantity FROM products p JOIN inventory i ON p.id=i.product_id WHERE p.id=?", id)
-	err := row.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &stock.Quantity)
+	images := ""
+	row := tx.QueryRow("SELECT p.id,p.name,p.description,p.price,p.seller,p.images,i.quantity FROM products p JOIN inventory i ON p.id=i.product_id WHERE p.id=?", id)
+	err := row.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &images, &stock.Quantity)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("stock does not exist: %w", entity.ErrNotFound)
 	} else if err != nil {
 		return nil, fmt.Errorf("error scanning row: %w", entity.ErrDB)
 	}
+	stock.Product.Images, err = entity.JSON_To_Image([]byte(images))
 	return &stock, nil
 }
 
 func getAllStocks(tx *Tx) ([]*entity.Stock, error) {
 	stocks := []*entity.Stock{}
-	rows, err := tx.Query("SELECT p.id,p.name,p.description,p.price,p.seller,i.quantity FROM products p JOIN inventory i ON p.id=i.product_id")
+	rows, err := tx.Query("SELECT p.id,p.name,p.description,p.price,p.seller,p.images,i.quantity FROM products p JOIN inventory i ON p.id=i.product_id")
 	if err != nil {
 		return nil, fmt.Errorf("error querying: %w", entity.ErrDB)
 	}
 	for rows.Next() {
 		stock := entity.Stock{}
-		err := rows.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &stock.Quantity)
+		images := ""
+		err := rows.Scan(&stock.Product.ID, &stock.Product.Name, &stock.Product.Description, &stock.Product.Price, &stock.Product.Seller, &images, &stock.Quantity)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning row: %w", entity.ErrDB)
 		}
+		stock.Product.Images, err = entity.JSON_To_Image([]byte(images))
 		stocks = append(stocks, &stock)
 	}
 	return stocks, nil
